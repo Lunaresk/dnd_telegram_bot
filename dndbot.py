@@ -26,7 +26,10 @@ def start(bot, update, args, user_data):
     return ConversationHandler.END
   if helpFuncs.isAvailable(args[0]):
     user_data['lobby'] = args[0]
-    user_data['character'] = helpFuncs.getOwnCharacter(update.message.from_user['id'], user_data['lobby'])
+    if update.message.from_user['id'] == helpFuncs.getDM(user_data['lobby']):
+      user_data['character'] = "DM"
+    else:
+      user_data['character'] = helpFuncs.getOwnCharacter(update.message.from_user['id'], user_data['lobby'])
     if user_data['character'] != None:
       bot.send_message(chat_id = update.message.chat_id, text = "Changed the Dungeon. You are now playing as {0}".format(user_data['character']))
       initMessage(bot, update, user_data)
@@ -71,7 +74,8 @@ def playerName(bot, update, user_data):
 
 #TODO Finish change lobby
 def changeLobby(bot, update, user_data):
-  code = update.message.text[1:11]
+  if len(update.message.text) >= 11:
+    code = update.message.text[1:11]
   checkUserData(update.message.from_user['id'], user_data)
   if not helpFuncs.isAvailable(code):
     bot.send_message(chat_id = update.message.chat_id, text = "I wasn't able to find the lobby. Please check your code for typos and check for case sensitive.")
@@ -159,21 +163,23 @@ def handleText(bot, update, user_data):
   pchats = helpFuncs.getPlayers(code)
   pcharas = helpFuncs.getPlayerCharas(code)
   own = user_data['character']
+  chats = []
+  charas = []
   for i in range(len(pchats)):
-    if str(pchats[i]) not in user_data['sendTo']:
-      pchats.remove(pchats[i])
-      pcharas.remove(pcharas[i])
-  charlist = ", ".join(pcharas)
+    if str(pchats[i]) in user_data['sendTo']:
+      chats.append(pchats[i])
+      charas.append(pcharas[i])
+  charlist = ", ".join(charas)
   if dmchat == update.message.chat_id:
     if len(user_data['sendTo']) == 0:
-      pchats = helpFuncs.getPlayers(code)
-    for i in pchats:
+      chats = helpFuncs.getPlayers(code)
+    for i in chats:
       bot.send_message(chat_id = i, text = u"{0}".format(update.message.text))
-  elif len(pchats) == 0:
+  elif len(chats) == 0:
     bot.send_message(chat_id = dmchat, text = u"{0}:\n{1}".format(own, update.message.text))
   else:
     bot.send_message(chat_id = dmchat, text = u"{0} to {1}:\n{2}".format(own, charlist, update.message.text))
-    for i in pchats:
+    for i in chats:
       if i == update.message.from_user['id']:
         continue
       bot.send_message(chat_id = i, text = u"{0}:\n{1}".format(own, update.message.text))
