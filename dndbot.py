@@ -97,6 +97,8 @@ def cancel(bot, update):
   bot.send_message(chat_id = update.message.chat_id, text = "Action cancelled. What else can I do for you?")
   return ConversationHandler.END
 
+
+#TODO edit old message to more than just Deprecated
 def initMessage(bot, update, user_data):
   message = update.message
   oldMessage = helpFuncs.getCurrentMessage(update.message.from_user['id'])
@@ -107,7 +109,7 @@ def initMessage(bot, update, user_data):
   title = helpFuncs.getLobbyTitle(user_data['lobby'])
   dmchat = helpFuncs.getDM(user_data['lobby'])
   dmname = bot.getChat(chat_id = dmchat).first_name
-  saveMessage = bot.send_message(chat_id = message.chat_id, text = u"{0}\nDungeonMaster: {1}".format(title, dmname), reply_markup = InlineKeyboardMarkup(keyboard)).message_id
+  saveMessage = bot.send_message(chat_id = message.chat_id, text = u"{0} /{1}\nDungeonMaster: {2}".format(title, user_data['lobby'], dmname), reply_markup = InlineKeyboardMarkup(keyboard)).message_id
   helpFuncs.updateMessageInCurrent(message.from_user['id'], saveMessage)
   helpFuncs.updateGameInCurrent(message.from_user['id'], user_data['lobby'])
   return ConversationHandler.END
@@ -115,6 +117,10 @@ def initMessage(bot, update, user_data):
 def editMessage(bot, update, user_data):
   query = update.callback_query
   message = query.message
+  currentMessage = helpFuncs.getCurrentMessage(query.from_user['id'])
+  if message.message_id != currentMessage:
+    bot.edit_message_text(chat_id = message.chat_id, message_id = message.message_id, text = u"{0}\n(Deprecated)".format(message.text))
+    return
   checkUserData(query.from_user['id'], user_data)
   player = query.data
   if player != "refresh":
