@@ -34,7 +34,10 @@ def start(bot, update, args, user_data):
       bot.send_message(chat_id = update.message.chat_id, text = "Changed the Dungeon. You are now playing as {0}".format(user_data['character']))
       initMessage(bot, update, user_data)
       return ConversationHandler.END
-    bot.send_message(chat_id = update.message.chat_id, text = "Cool! Send now the name of your Character, so that the others can identify you.")
+    dmchat = helpFuncs.getDM(user_data['lobby'])
+    dmname = bot.getChat(chat_id = dmchat).first_name
+    title = helpFuncs.getLobbyTitle(user_data['lobby'])
+    bot.send_message(chat_id = update.message.chat_id, text = u"Cool! You're joining {0} from {1}. Send now the name of your Character, so that the others can identify you.".format(title, dmname))
     return SETNAME
   bot.send_message(chat_id = update.message.chat_id, text = "I wasn't able to find the lobby. Please ask your DM for the code again.")
   return ConversationHandler.END
@@ -88,8 +91,8 @@ def changeLobby(bot, update, user_data):
   temp = helpFuncs.getOwnCharacter(update.message.from_user['id'], code)
   if temp != None:
     user_data['character'] = temp
-    uder_data['lobby'] = code
-    return ConversationHandler.END
+    user_data['lobby'] = code
+    return initMessage(bot, update, user_data)
   return start(bot, update, code, user_data)
 
 #TODO finish cancel
@@ -190,6 +193,9 @@ def handleText(bot, update, user_data):
         continue
       bot.send_message(chat_id = i, text = u"{0}:\n{1}".format(own, update.message.text))
 
+def help(bot, update):
+  bot.send_message(chat_id = update.message.chat_id, text = "I appreciate your support and for using me. Here is a brief tutorial:\nWhen you're a DM (DungeonMaster), you can create a new lobby by typing /new [Title of the game] and I will give you a message you can forward to your people and wait for them to join. Press the Refresh button when you think someone new joined (will be improved soon).\n\nIf you are a player and just got invited to a game, you should first send me your character's name when I ask you to. After that, you get a message from me with buttons.\nWhen there's a red cross next to a character, it means, messages you are sending will not be sent to them.\nWhen there's a checkmark next to a character, it means that these characters are going to receive your message.\nWhen none of the characters are checked, you're just chatting with the DM. When you are the DM and none are checked, you're talking to everyone.\n\nAlways remember that your DM has to know everything and therefore gets every message you're sending to anyone.\n\nWhen you got errors or suggestions, please send them to my creator @Lunaresk. Have Fun!")
+
 def error_callback(bot, update, error):
   try:
     raise error
@@ -230,6 +236,7 @@ joinGame = ConversationHandler(
 
 dispatcher.add_handler(joinGame)
 dispatcher.add_handler(newGame)
+dispatcher.add_handler(CommandHandler('help', help))
 dispatcher.add_handler(CallbackQueryHandler(editMessage, pass_user_data = True))
 dispatcher.add_handler(MessageHandler(Filters.text, handleText, pass_user_data = True))
 dispatcher.add_error_handler(error_callback)
