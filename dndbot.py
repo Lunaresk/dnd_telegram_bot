@@ -196,11 +196,14 @@ def sendText(bot, theText, user_data, action):
   if dmchat == user_data['id']:
     if len(user_data['sendTo']) == 0:
       if action == 'm':
-        chats = pchats
+        chats.append(pchats)
       elif action == 'r':
-        chats = dmchat
+        bot.send_message(chat_id = i, text = theText)
     for i in chats:
-      bot.send_message(chat_id = i, text = u"{0}".format(theText))
+      if action == 'm':
+        bot.send_message(chat_id = i, text = theText)
+      elif action == 'r':
+        bot.send_message(chat_id = i, text = u"DM {0}".format(theText))
   elif len(chats) == 0:
     if action == 'm':
       bot.send_message(chat_id = dmchat, text = u"{0}:\n{1}".format(own, theText))
@@ -209,11 +212,9 @@ def sendText(bot, theText, user_data, action):
       bot.send_message(chat_id = user_data['id'], text = theText)
   else:
     bot.send_message(chat_id = dmchat, text = u"{0} to {1}:\n{2}".format(own, charlist, theText))
+    if action == 'r':
+      bot.send_message(chat_id = user_data['id'], text = theText)
     for i in chats:
-      if i == update.message.from_user['id']:
-        if action == 'r':
-          bot.send_message(chat_id = user_data['id'], text = theText)
-        continue
       if action == 'm':
         bot.send_message(chat_id = i, text = u"{0}:\n{1}".format(own, theText))
       elif action == 'r':
