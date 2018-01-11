@@ -1,10 +1,6 @@
-from random import choice
+from random import (choice, randint)
 from string import (ascii_lowercase, ascii_uppercase, digits)
-from bottoken import getConn
-import psycopg2
-
-conn = None
-cur = None
+from re import search
 
 def id_generator(size=10, chars = ascii_lowercase + ascii_uppercase + digits):
   return ''.join(choice(chars) for _ in range(size))
@@ -16,88 +12,57 @@ def correctArgs(args):
     return " ".join(args)
   return str(args)
 
-def initDB():
-  global conn
-  global cur
-  conn = getConn()
-  cur = conn.cursor()
-  conn.rollback()
-  cur.execute("CREATE TABLE IF NOT EXISTS Games(Code TEXT PRIMARY KEY NOT NULL, Title TEXT NOT NULL, DM BIGINT NOT NULL);")
-  cur.execute("CREATE TABLE IF NOT EXISTS Current(Player BIGINT PRIMARY KEY NOT NULL, Game TEXT REFERENCES Games, Message BIGINT);")
-  cur.execute("CREATE TABLE IF NOT EXISTS Players(Player BIGINT NOT NULL REFERENCES Current, Character TEXT NOT NULL, Code TEXT REFERENCES Games);")
-  conn.commit()
+#TODO finish parser
+def diceParser(args):
+  dice = []
+  die = []
+  for i in args:
+    try:
+      d = search('d|D|w|W', i).start()
+    except AttributeError:
+      if is_int(i):
+        dice.append(0)
+        die.append(int(i))
+        continue
+      return "Please use the following formatting:\n'/roll xdy' where x is the amount of dice and y is the die you want to roll. And don't forget to use integers."
+    if d == 0:
+      if is_int(i[d+1:]):
+        dice.append(1)
+        die.append(int(i[d+1:]))
+      else:
+        return "Please use the following formatting:\n'/roll xdy' where x is the amount of dice and y is the die you want to roll. And don't forget to use integers."
+    else:
+      if is_int(i[:d]) and is_int(i[d+1:]):
+        dice.append(int(i[:d]))
+        die.append(int(i[d+1:]))
+      else:
+        return "Please use the following formatting:\n'/roll xdy' where x is the amount of dice and y is the die you want to roll. And don't forget to use integers."
+  if sum(dice) > 20:
+    return "I can't imagine in which situation you roll more than 20 dice (unless it's some homebrewed epic overpowered mastersword or something). Please use a maximum of 20 dice per roll."
+  theText = "Rolled: {0}".format(str(dice[0]) + 'D' + str(die[0]))
+  for i in range(len(dice)):
+    if i == 0:
+      continue
+    theText += " + "
+    if dice[i] != 0:
+      theText += str(dice[i]) + "D"
+    theText += str(die[i])
+  theText += "\nResult:\n"
+  results = []
+  for i in range(len(dice)):
+    if dice[i] == 0:
+      results.append(die[i])
+    for j in range(dice[i]):
+      results.append(randint(1, die[i]))
+  theText += str(sum(results)) + " = " + str(results[0])
+  results.pop(0)
+  for i in results:
+    theText += " + " + str(i)
+  return theText
 
-def isAvailable(code):
-  cur.execute("SELECT Code FROM Games WHERE Code = %s;", (code,))
-  test = cur.fetchall()
-  if len(test) == 0:
+def is_int(number):
+  try:
+    int(number)
+    return True
+  except ValueError:
     return False
-  return True
-
-def evaluateList(datas):
-  cur.fetchall()
-  list = []
-  for i in datas:
-    list.append(i[0])
-  if len(list) == 0:
-    return None
-  return list
-
-def evaluateOne(data):
-  cur.fetchall()
-  if data != None:
-    if data[0] != None:
-      return data[0]
-  return None
-
-def initCurrent(player):
-  cur.execute("INSERT INTO Current(Player) VALUES(%s) ON CONFLICT(Player) DO NOTHING;", (player,))
-  conn.commit()
-
-def getOwnCharacter(player, code):
-  cur.execute("SELECT Character FROM Players WHERE Player = %s AND Code = %s;", (player, code))
-  return evaluateOne(cur.fetchone())
-
-def getPlayers(code):
-  cur.execute("SELECT Player FROM Players WHERE Code = %s ORDER BY Player;", (code,))
-  return evaluateList(cur.fetchall())
-
-def getPlayerCharas(code):
-  cur.execute("SELECT Character FROM Players WHERE Code = %s ORDER BY Player;", (code,))
-  return evaluateList(cur.fetchall())
-
-def getCurrentLobby(player):
-  cur.execute("SELECT Game FROM Current WHERE Player = %s;", (player,))
-  return evaluateOne(cur.fetchone())
-
-def getDM(code):
-  cur.execute("SELECT DM FROM Games WHERE Code = %s;", (code,))
-  return evaluateOne(cur.fetchone())
-
-def getLobbyTitle(code):
-  cur.execute("SELECT Title FROM Games WHERE Code = %s;", (code,))
-  return evaluateOne(cur.fetchone())
-
-def updateMessageInCurrent(player, message):
-  cur.execute("UPDATE Current SET Message = %s WHERE Player = %s;", (message, player))
-  conn.commit()
-
-def getCurrentMessage(player):
-  cur.execute("SELECT Message FROM Current WHERE Player = %s;", (player,))
-  return evaluateOne(cur.fetchone())
-
-def updateGameInCurrent(player, code):
-  cur.execute("UPDATE Current SET Game = %s WHERE Player = %s;", (code, player))
-  conn.commit()
-
-def insertGame(code, title, dm):
-  cur.execute("INSERT INTO Games(Code, Title, DM) VALUES(%s, %s, %s);", (code, title, dm))
-  cur.execute("UPDATE Current SET Game = %s WHERE Player = %s;", (code, dm))
-  conn.commit()
-
-def insertPlayers(player, character, code):
-  cur.execute("INSERT INTO Players(Player, Character, Code) VALUES(%s, %s, %s);", (player, character, code))
-  conn.commit()
-
-def close():
-  conn.close()
