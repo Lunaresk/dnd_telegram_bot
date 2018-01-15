@@ -10,11 +10,11 @@ updater = getToken()
 dispatcher = updater.dispatcher
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
+# SETNAME used for the conversationhandlers
 SETNAME = range(1)
 
 dbFuncs.initDB()
 
-#TODO Check if lobby is present
 # args should be the code of a lobby
 def start(bot, update, args, user_data):
   dbFuncs.initCurrent(update.message.from_user['id'])
@@ -34,6 +34,9 @@ def start(bot, update, args, user_data):
     if user_data['character'] != None:
       bot.send_message(chat_id = update.message.chat_id, text = "Changed the Dungeon. You are now playing as {0}".format(user_data['character']))
       initMessage(bot, update, user_data)
+      return ConversationHandler.END
+    if not dbFuncs.isOpen(user_data['lobby']):
+      bot.send_message(chat_id = update.message.chat_id, text = "This lobby seems to be closed by the DM. You should PM him if you want to join.")
       return ConversationHandler.END
     dmchat = dbFuncs.getDM(user_data['lobby'])
     dmname = bot.getChat(chat_id = dmchat).first_name
@@ -64,6 +67,32 @@ def new(bot, update, args, user_data):
     bot.send_message(chat_id = update.message.chat_id, text = "Great! Please enter a Title for your round.")
     return SETNAME
 
+def my(bot, update):
+  games = dbFuncs.getGames(update.message.from_user['id'])
+  if len(games) == 0:
+    bot.send_message(chat_id = update.message.chat_id, text = "There is currently no lobby you're in. Get a group together and change this.")
+    return
+  theText = "Here's a list of games you're currently in (I recommend not to join more than two games):"
+  for i in games:
+    theText += "\n" + dbFuncs.getLobbyTitle(i) + " /" + i
+  bot.send_message(chat_id = update.message.chat_id, text = theText)
+
+def close(bot, update, user_data):
+  checkUserData(update.message.from_user['id'], user_data)
+  if user_data['id'] == dbFuncs.getDM(user_data['lobby']):
+    dbFuncs.closeLobby(user_data['lobby'])
+    bot.send_message(chat_id = update.message.chat_id, text = "Lobby closed. Nobody can join now.")
+    return
+  bot.send_message(chat_id = update.message.chat_id, text = "You are not the DM of this lobby. You can't close or open it.")
+
+def open(bot, update, user_data):
+  checkUserData(update.message.from_user['id'], user_data)
+  if user_data['id'] == dbFuncs.getDM(user_data['lobby']):
+    dbFuncs.openLobby(user_data['lobby'])
+    bot.send_message(chat_id = update.message.chat_id, text = "Lobby closed. Nobody can join now.")
+    return
+  bot.send_message(chat_id = update.message.chat_id, text = "You are not the DM of this lobby. You can't close or open it.")
+
 def gameName(bot, update, user_data):
   return new(bot, update, update.message.text, user_data)
 
@@ -76,7 +105,6 @@ def playerName(bot, update, user_data):
   bot.send_message(chat_id = update.message.chat_id, text = "Nice work! Now you can communicate with your party and DM.")
   return initMessage(bot, update, user_data)
 
-#TODO Finish change lobby
 def changeLobby(bot, update, user_data):
   if len(update.message.text) >= 11:
     code = update.message.text[1:11]
@@ -96,7 +124,39 @@ def changeLobby(bot, update, user_data):
     return initMessage(bot, update, user_data)
   return start(bot, update, code, user_data)
 
-#TODO finish cancel
+def leave(bot, update, user_data):
+  checkUserData(update.message.from_user['id'], user_data)
+  if user_data['lobby'] == None:
+    bot.send_message(chat_id = update.message.chat_id, text = "You are currently not actively in a lobby you can leave. Please enter a lobby again and then use this command.")
+    return ConversationHandler.END
+  title = dbFuncs.getLobbyTitle(user_data['lobby'])
+  if dbFuncs.getDM(user_data['lobby']) == user_data['id']:
+    bot.send_message(chat_id = update.user.chat_id, text = u"You are the DM of this round. when you leave, the whole lobby will be deleted.")
+  bot.send_message(chat_id = update.message.chat_id, text = u"You won't be able to send messages to your teammates nor will you receive their's. Are you really sure you want to leave {0}? If so, send 'I am sure'.".format(title))
+  return SETNAME
+
+#TODO
+def leaveLobby(bot, update, user_data):
+  if update.message.text.lower() != 'i am sure':
+    bot.send_message(chat_id = user_data['id'], text = "I don't understand. If you want to cancel, just type '/cancel'.")
+    return SETNAME
+  players = dbFuncs.getPlayers(user_data['lobby'])
+  title = dbFuncs.getLobbyTitle(user_data['lobby'])
+  if dbFuncs.getDM(user_data['lobby']) == user_data['id']:
+    dbFuncs.removeGame(user_data['lobby'])
+    for i in players:
+      bot.send_message(chat_id = i, text = u"Your DM removed the game {0}. You're on your own now.".format(title))
+  else:
+    players.appen(dbFuncs.getDM(user_data['lobby']))
+    players.remove(user_data['id'])
+    character = user_data['character']
+    dbFuncs.removePlayerFromGame(user_data['id'], user_data['lobby'])
+    for i in players:
+      bot.send_message(chat_id = i, text = u"{0} left the game. Please refresh your lobby.".format(character))
+  bot.send_message(chat_id = user_data['id'], text = "You left the game.")
+  return ConversationHandler.END
+
+#TODO umm...
 def cancel(bot, update):
   bot.send_message(chat_id = update.message.chat_id, text = "Action cancelled. What else can I do for you?")
   return ConversationHandler.END
@@ -222,11 +282,21 @@ def sendText(bot, theText, user_data, action):
 
 def help(bot, update, args):
   if len(args) == 0:
-    bot.send_message(chat_id = update.message.chat_id, text = "I appreciate your support and for using me. Here is a brief tutorial:\nWhen you're a DM (DungeonMaster), you can create a new lobby by typing /new [Title of the game] and I will give you a message you can forward to your people and wait for them to join. Press the Refresh button when you think someone new joined (will be improved soon).\n\nIf you are a player and just got invited to a game, you should first send me your character's name when I ask you to. After that, you get a message from me with buttons.\nWhen there's a red cross next to a character, it means, messages you are sending will not be sent to them.\nWhen there's a checkmark next to a character, it means that these characters are going to receive your message.\nWhen none of the characters are checked, you're just chatting with the DM. When you are the DM and none are checked, you're talking to everyone.\n\nAlways remember that your DM has to know everything and therefore gets every message you're sending to anyone.\n\nWhen you need help on a specific topic, type '/help [keypword]' (eg '/help roll') to get help with it.\n\nWhen you got errors or suggestions, please send them to my creator @Lunaresk. Have Fun!")
-  elif args[0] == 'roll':
-    bot.send_message(chat_id = update.message.chat_id, text = "You want to roll some dice? Great! Just type '/roll' and then text in this form '3d20' where the number behind the d stands for the die and the number before the d stands for the number of corresponding dice you want to roll.\nFor example: '/roll 2d10' would roll two ten-sided dice for you.\n\nYou can also combine different dice with that form: '/roll 2d6 + 4d8'\nThis way, you would roll (for example) two six-sided dice and four eight-sided dice.\n\nIf the d is missing (eg. '/roll d6 + 10') I'll treat it as a modifier. This input would result in one six-sided die added to 10.\n\nImportant: you can't throw more than 20 dice at once. Have fun!")
+    bot.send_message(chat_id = update.message.chat_id, text = "I appreciate your support and for using me. When you need help on a specific topic, type '/help [keyword]' (eg '/help roll') to get help with it.\nCurrently supported commands for help are: DM, new, Player, join, roll\n\nWhen you got errors or suggestions, please send them to my creator @Lunaresk. For the sourcecode, please check https://github.com/Lunaresk/dnd_telegram_bot.\nHave Fun!")
+    return
+  helpArgs = args[0].lower()
+  if helpArgs == 'dm':
+    bot.send_message(chat_id = update.message.chat_id, text = "Do you want to know what a DungeonMaster can here? I'll tell you.\nThe DM (short for DungeonMaster, similar to a GameMaster) creates the lobby and invites his players via a link. When the players chat with each other or roll dice, the DM always gets these messages and to whom it was sent. When the DM makes a roll or chats, only the designated players will receive this. One special thing for the DM tho: if no player is checked to receive his message, rolls are just made for the DM while messages are sent like everyone is checked.")
+  elif helpArgs == 'new':
+    bot.send_message(chat_id = update.message.chat_id, text = "So you want to be the man who leads his players to despair? Nice decision. First, you create a new lobby with '/new'. Then I'll ask you about how you want to call this lobby. Alternatively you can type the name directly behind the '/new' command (eg '/new Bounty Hunter'). That's it. then you just send the link I give you to your players and they'll join (hopefully).")
+  elif helpArgs == 'player':
+    bot.send_message(chat_id = update.message.chat_id, text = "The poor souls tormented by the DM. Let me guide you as good as I can.\nWhen you got invited to a game, I will ask you about your character's name.\nIf you want to chat, make a choice, who you want to hear your voice.\nBut always keep in mind what you do, for the DM is always hearing you.\nYou have no choice and still want to text, the DM is the one who gets your message next.\nIf you want to leave, take my bet, this function comes soon, but hasn't been implemented yet.\n\nHave fun!")
+  elif helpArgs == 'join':
+    bot.send_message(chat_id = update.message.chat_id, text = "You just got invited to a game or are waiting for your DM to create a lobby? I introduce you about what you do then:\nWhen your DM created a link, he/she will send it to you either as a link for the bot or like 'Join [Game name]'. Either way you click on it and press start when you're here. Then I will ask you about your character's name. After you entered it, I will send you the lobby name and the DM's name in one message together with a selection field where you can choose who gets your messages. Remember, you are talking as your character to other characters. This bot is not suited for private conversations, because !CAUTION! the DM receives a copy of every message you send. He also knows who sent it and to whom it was sent. Same with rolls.")
+  elif helpArgs == 'roll':
+    bot.send_message(chat_id = update.message.chat_id, text = "You want to roll some dice? Great! Just type '/roll' and then text in this form '3d20' where the number behind the d stands for the die and the number before the d stands for the number of corresponding dice you want to roll.\nFor example: '/roll 2d10' would roll two ten-sided dice for you.\n\nYou can also combine different dice with that form: '/roll 2d6 + 4d8'\nThis way, you would roll (for example) two six-sided dice and four eight-sided dice.\n\nIf the d is missing (eg. '/roll d6 + 10') I'll treat it as a modifier. This input would result in one six-sided die added to 10.\n\nImportant: you can't throw more than 100 dice at once.")
   else:
-    bot.send_message(chat_id = update.message.chat_id, text = "I don't understand. Here's a list of currently available keywords:\nroll\n\nIf you want some general help, just type /help.")
+    help(bot, update, [])
 
 def error_callback(bot, update, error):
   try:
@@ -266,10 +336,22 @@ joinGame = ConversationHandler(
   fallbacks = [CommandHandler('cancel', cancel)]
 )
 
+leaveGame = ConversationHandler(
+  entry_points = [CommandHandler('leave', leave, pass_user_data = True)],
+  states = {
+    SETNAME: [MessageHandler(Filters.text, leaveLobby, pass_user_data = True)]
+  },
+  fallbacks = [CommandHandler('cancel', cancel)]
+)
+
 dispatcher.add_handler(joinGame)
 dispatcher.add_handler(newGame)
+dispatcher.add_handler(leaveGame)
+dispatcher.add_handler(CommandHandler('my', my))
 dispatcher.add_handler(CommandHandler('help', help, pass_args = True))
 dispatcher.add_handler(CommandHandler('roll', roll, pass_args = True, pass_user_data = True))
+dispatcher.add_handler(CommandHandler('open', open, pass_user_data = True))
+dispatcher.add_handler(CommandHandler('close', close, pass_user_data = True))
 dispatcher.add_handler(CallbackQueryHandler(editMessage, pass_user_data = True))
 dispatcher.add_handler(MessageHandler(Filters.text, handleText, pass_user_data = True))
 dispatcher.add_error_handler(error_callback)

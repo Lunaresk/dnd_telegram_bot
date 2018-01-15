@@ -37,8 +37,8 @@ def diceParser(args):
         die.append(int(i[d+1:]))
       else:
         return "Please use the following formatting:\n'/roll xdy' where x is the amount of dice and y is the die you want to roll. And don't forget to use integers."
-  if sum(dice) > 20:
-    return "I can't imagine in which situation you roll more than 20 dice (unless it's some homebrewed epic overpowered mastersword or something). Please use a maximum of 20 dice per roll."
+  if sum(dice) > 100:
+    return "I can't imagine in which situation you roll more than 100 dice (unless it's some homebrewed epic overpowered mastersword or something). Please use a maximum of 100 dice per roll."
   theText = "Rolled: {0}".format(str(dice[0]) + 'D' + str(die[0]))
   for i in range(len(dice)):
     if i == 0:
