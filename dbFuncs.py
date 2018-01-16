@@ -18,14 +18,14 @@ def initDB():
 def isAvailable(code):
   cur.execute("SELECT Code FROM Games WHERE Code = %s;", (code,))
   test = evaluateOne(cur.fetchone())
-  if len(test) == 0:
-    return False
-  return True
+  if test != None:
+    return True
+  return False
 
 def isOpen(code):
   cur.execute("SELECT IsOpen FROM Games WHERE Code = %s;", (code,))
   test = evaluateOne(cur.fetchone())
-  if len(test) != 0:
+  if test != None:
     return test
   return False
 
@@ -72,6 +72,7 @@ def openLobby(code):
 
 def removeGame(code):
   cur.execute("DELETE FROM Players WHERE Code = %s;", (code,))
+  cur.execute("UPDATE Current SET Message = DEFAULT WHERE Game = %s;", (code,))
   cur.execute("UPDATE Current SET Game = DEFAULT WHERE Game = %s;", (code,))
   cur.execute("DELETE FROM Games WHERE Code = %s;", (code,))
   conn.commit()
@@ -98,7 +99,9 @@ def getGames(player):
 
 def removePlayerFromGame(player, game):
   cur.execute("DELETE FROM Players WHERE Code = %s AND Player = %s;", (game, player))
+  cur.execute("UPDATE Current SET Message = DEFAULT WHERE Game = %s AND Player = %s;", (game, player))
   cur.execute("UPDATE Current SET Game = DEFAULT WHERE Game = %s AND Player = %s;", (game, player))
+  conn.commit()
 
 def evaluateList(datas):
   cur.fetchall()

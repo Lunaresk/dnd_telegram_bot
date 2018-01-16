@@ -22,11 +22,12 @@ def start(bot, update, args, user_data):
   if len(args) == 0:
     bot.send_message(chat_id=update.message.chat_id, text="Hey buddy! Welcome to the DnD Messenger bot. It allows your character to talk/whisper to other characters without anyone else except the Dungeon Master reading it.\nIf you are a DM, please type /new\nOtherwise, ask your DM for the correct code\link to join a group.")
     return ConversationHandler.END
-  if len(args[0]) != 10:
+  args = ''.join(args)[0:11]
+  if len(args) != 10:
     bot.send_message(chat_id = update.message.chat_id, text = "The length of the code is strange. It should be 10 characters long. Please try again.")
     return ConversationHandler.END
-  if dbFuncs.isAvailable(args[0]):
-    user_data['lobby'] = args[0]
+  if dbFuncs.isAvailable(args):
+    user_data['lobby'] = args
     if update.message.from_user['id'] == dbFuncs.getDM(user_data['lobby']):
       user_data['character'] = "DM"
     else:
@@ -89,7 +90,7 @@ def open(bot, update, user_data):
   checkUserData(update.message.from_user['id'], user_data)
   if user_data['id'] == dbFuncs.getDM(user_data['lobby']):
     dbFuncs.openLobby(user_data['lobby'])
-    bot.send_message(chat_id = update.message.chat_id, text = "Lobby closed. Nobody can join now.")
+    bot.send_message(chat_id = update.message.chat_id, text = "Lobby opened. Others can join now.")
     return
   bot.send_message(chat_id = update.message.chat_id, text = "You are not the DM of this lobby. You can't close or open it.")
 
@@ -107,7 +108,7 @@ def playerName(bot, update, user_data):
 
 def changeLobby(bot, update, user_data):
   if len(update.message.text) >= 11:
-    code = update.message.text[1:11]
+    code = update.message.text[1:12]
   checkUserData(update.message.from_user['id'], user_data)
   if not dbFuncs.isAvailable(code):
     bot.send_message(chat_id = update.message.chat_id, text = "I wasn't able to find the lobby. Please check your code for typos and check for case sensitive.")
@@ -131,7 +132,7 @@ def leave(bot, update, user_data):
     return ConversationHandler.END
   title = dbFuncs.getLobbyTitle(user_data['lobby'])
   if dbFuncs.getDM(user_data['lobby']) == user_data['id']:
-    bot.send_message(chat_id = update.user.chat_id, text = u"You are the DM of this round. when you leave, the whole lobby will be deleted.")
+    bot.send_message(chat_id = update.message.chat_id, text = u"You are the DM of this round. when you leave, the whole lobby will be deleted.")
   bot.send_message(chat_id = update.message.chat_id, text = u"You won't be able to send messages to your teammates nor will you receive their's. Are you really sure you want to leave {0}? If so, send 'I am sure'.".format(title))
   return SETNAME
 
@@ -147,12 +148,14 @@ def leaveLobby(bot, update, user_data):
     for i in players:
       bot.send_message(chat_id = i, text = u"Your DM removed the game {0}. You're on your own now.".format(title))
   else:
-    players.appen(dbFuncs.getDM(user_data['lobby']))
+    players.append(dbFuncs.getDM(user_data['lobby']))
     players.remove(user_data['id'])
     character = user_data['character']
     dbFuncs.removePlayerFromGame(user_data['id'], user_data['lobby'])
     for i in players:
       bot.send_message(chat_id = i, text = u"{0} left the game. Please refresh your lobby.".format(character))
+  user_data.clear()
+  checkUserData(update.message.from_user['id'], user_data)
   bot.send_message(chat_id = user_data['id'], text = "You left the game.")
   return ConversationHandler.END
 
@@ -223,15 +226,11 @@ def createKeyboard(message, user_data):
   return keyboard
 
 def checkUserData(id, user_data):
-  if 'id' not in user_data:
-    user_data['id'] = id
-  if 'lobby' not in user_data:
-    user_data['lobby'] = dbFuncs.getCurrentLobby(id)
-  if 'character' not in user_data:
-    user_data['character'] = dbFuncs.getOwnCharacter(id, user_data['lobby'])
+  user_data['id'] = id
+  user_data['lobby'] = dbFuncs.getCurrentLobby(id)
+  user_data['character'] = dbFuncs.getOwnCharacter(id, user_data['lobby'])
   if 'sendTo' not in user_data:
     user_data['sendTo'] = []
-  
 
 def handleText(bot, update, user_data):
   checkUserData(update.message.from_user['id'], user_data)
