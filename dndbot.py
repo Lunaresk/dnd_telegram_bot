@@ -136,7 +136,6 @@ def leave(bot, update, user_data):
   bot.send_message(chat_id = update.message.chat_id, text = u"You won't be able to send messages to your teammates nor will you receive their's. Are you really sure you want to leave {0}? If so, send 'I am sure'.".format(title))
   return SETNAME
 
-#TODO
 def leaveLobby(bot, update, user_data):
   if update.message.text.lower() != 'i am sure':
     bot.send_message(chat_id = user_data['id'], text = "I don't understand. If you want to cancel, just type '/cancel'.")
@@ -159,7 +158,6 @@ def leaveLobby(bot, update, user_data):
   bot.send_message(chat_id = user_data['id'], text = "You left the game.")
   return ConversationHandler.END
 
-#TODO umm...
 def cancel(bot, update):
   bot.send_message(chat_id = update.message.chat_id, text = "Action cancelled. What else can I do for you?")
   return ConversationHandler.END
@@ -199,6 +197,7 @@ def editMessage(bot, update, user_data):
   checkUserData(query.from_user['id'], user_data)
   player = query.data
   if player != "refresh":
+    player = int(player)
     if player in user_data['sendTo']:
       user_data['sendTo'].remove(player)
     else:
@@ -219,7 +218,7 @@ def createKeyboard(message, user_data):
       pchats.remove(message.from_user['id'])
       pcharas.remove(user_data['character'])
     for i in range(len(pchats)):
-      if str(pchats[i]) in user_data['sendTo']:
+      if pchats[i] in user_data['sendTo']:
         keyboard.append([InlineKeyboardButton("✔ " + pcharas[i], callback_data = pchats[i])])
       else:
         keyboard.append([InlineKeyboardButton("❌ " + pcharas[i], callback_data = pchats[i])])
@@ -231,6 +230,11 @@ def checkUserData(id, user_data):
   user_data['character'] = dbFuncs.getOwnCharacter(id, user_data['lobby'])
   if 'sendTo' not in user_data:
     user_data['sendTo'] = []
+  else:
+    test = dbFuncs.getPlayers(user_data['lobby'])
+    for i in user_data['sendTo']:
+      if i not in test:
+        user_data['sendTo'].remove(i)
 
 def handleText(bot, update, user_data):
   checkUserData(update.message.from_user['id'], user_data)
@@ -243,40 +247,42 @@ def sendText(bot, theText, user_data, action):
     return
   dmchat = dbFuncs.getDM(code)
   pchats = dbFuncs.getPlayers(code)
+  if pchats == None:
+    bot.send_message(chat_id = user_data['id'], text = "Nobody is in here. Invite some people.")
   pcharas = dbFuncs.getPlayerCharas(code)
   own = user_data['character']
   chats = []
   charas = []
   for i in range(len(pchats)):
-    if str(pchats[i]) in user_data['sendTo']:
+    if pchats[i] in user_data['sendTo']:
       chats.append(pchats[i])
       charas.append(pcharas[i])
   charlist = ", ".join(charas)
-  if dmchat == user_data['id']:
-    if len(user_data['sendTo']) == 0:
-      if action == 'm':
-        chats.append(pchats)
-      elif action == 'r':
+  if action == 'm':
+    if dmchat == user_data['id']:
+      if len(user_data['sendTo']) == 0:
+        for i in pchats:
+          chats.append(i)
+      for i in chats:
         bot.send_message(chat_id = i, text = theText)
-    for i in chats:
-      if action == 'm':
-        bot.send_message(chat_id = i, text = theText)
-      elif action == 'r':
-        bot.send_message(chat_id = i, text = u"DM {0}".format(theText))
-  elif len(chats) == 0:
-    if action == 'm':
+    elif len(chats) == 0:
       bot.send_message(chat_id = dmchat, text = u"{0}:\n{1}".format(own, theText))
-    elif action == 'r':
+    else:
+      bot.send_message(chat_id = dmchat, text = u"{0} to {1}:\n{2}".format(own, charlist, theText))
+      for i in chats:
+        bot.send_message(chat_id = i, text = u"{0}:\n{1}".format(own, theText))
+  elif action == 'r':
+    if dmchat == user_data['id']:
+      bot.send_message(chat_id = user_data['id'], text = theText)
+      for i in chats:
+        bot.send_message(chat_id = i, text = u"DM {0}".format(theText))
+    elif len(chats) == 0:
       bot.send_message(chat_id = dmchat, text = u"{0} {1}".format(own, theText))
       bot.send_message(chat_id = user_data['id'], text = theText)
-  else:
-    bot.send_message(chat_id = dmchat, text = u"{0} to {1}:\n{2}".format(own, charlist, theText))
-    if action == 'r':
+    else:
+      bot.send_message(chat_id = dmchat, text = u"{0} to {1}:\n{2}".format(own, charlist, theText))
       bot.send_message(chat_id = user_data['id'], text = theText)
-    for i in chats:
-      if action == 'm':
-        bot.send_message(chat_id = i, text = u"{0}:\n{1}".format(own, theText))
-      elif action == 'r':
+      for i in chats:
         bot.send_message(chat_id = i, text = u"{0} {1}".format(own, theText))
 
 def help(bot, update, args):
