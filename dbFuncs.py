@@ -94,8 +94,17 @@ def getOwnCharacter(player, code):
   return evaluateOne(cur.fetchone())
 
 def getGames(player):
+  cur.execute("SELECT Code FROM Games WHERE DM = %s;", (player,))
+  temp1 = evaluateList(cur.fetchall())
   cur.execute("SELECT Code FROM Players WHERE Player = %s;", (player,))
-  return evaluateList(cur.fetchall())
+  temp2 = evaluateList(cur.fetchall())
+  if temp1 == None:
+    if temp2 == None:
+      return None
+    return temp2
+  if temp2 == None:
+    return temp1
+  return temp1 + temp2
 
 def removePlayerFromGame(player, game):
   cur.execute("DELETE FROM Players WHERE Code = %s AND Player = %s;", (game, player))

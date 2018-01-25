@@ -70,10 +70,10 @@ def new(bot, update, args, user_data):
 
 def my(bot, update):
   games = dbFuncs.getGames(update.message.from_user['id'])
-  if len(games) == 0:
+  if games == None:
     bot.send_message(chat_id = update.message.chat_id, text = "There is currently no lobby you're in. Get a group together and change this.")
     return
-  theText = "Here's a list of games you're currently in (I recommend not to join more than two games):"
+  theText = "Here's a list of games you're currently in (I recommend not to join more than two games):\n"
   for i in games:
     theText += "\n" + dbFuncs.getLobbyTitle(i) + " /" + i
   bot.send_message(chat_id = update.message.chat_id, text = theText)
@@ -144,8 +144,9 @@ def leaveLobby(bot, update, user_data):
   title = dbFuncs.getLobbyTitle(user_data['lobby'])
   if dbFuncs.getDM(user_data['lobby']) == user_data['id']:
     dbFuncs.removeGame(user_data['lobby'])
-    for i in players:
-      bot.send_message(chat_id = i, text = u"Your DM removed the game {0}. You're on your own now.".format(title))
+    if players != None:
+      for i in players:
+        bot.send_message(chat_id = i, text = u"Your DM removed the game {0}. You're on your own now.".format(title))
   else:
     players.append(dbFuncs.getDM(user_data['lobby']))
     players.remove(user_data['id'])
@@ -261,8 +262,7 @@ def sendText(bot, theText, user_data, action):
   if action == 'm':
     if dmchat == user_data['id']:
       if len(user_data['sendTo']) == 0:
-        for i in pchats:
-          chats.append(i)
+        chats += pchats
       for i in chats:
         bot.send_message(chat_id = i, text = theText)
     elif len(chats) == 0:
@@ -284,6 +284,7 @@ def sendText(bot, theText, user_data, action):
       bot.send_message(chat_id = user_data['id'], text = theText)
       for i in chats:
         bot.send_message(chat_id = i, text = u"{0} {1}".format(own, theText))
+  bot.send_chat_action(chat_id = user_data['id'], action = "typing")
 
 def help(bot, update, args):
   if len(args) == 0:
@@ -326,39 +327,39 @@ def error_callback(bot, update, error):
     # handle all other telegram related errors
 
 newGame = ConversationHandler(
-  entry_points = [CommandHandler('new', new, pass_args = True, pass_user_data = True)],
+  entry_points = [CommandHandler('new', new, Filters.private, pass_args = True, pass_user_data = True)],
   states = {
-    SETNAME: [MessageHandler(Filters.text, gameName, pass_user_data = True)]
+    SETNAME: [MessageHandler(Filters.text&Filters.private, gameName, pass_user_data = True)]
   },
-  fallbacks = [CommandHandler('cancel', cancel)]
+  fallbacks = [CommandHandler('cancel', Filters.private, cancel)]
 )
 
 joinGame = ConversationHandler(
-  entry_points = [CommandHandler('start', start, pass_args = True, pass_user_data = True), RegexHandler('^\/[0-9A-Za-z]{10}$', changeLobby, pass_user_data = True)],
+  entry_points = [CommandHandler('start', start, Filters.private, pass_args = True, pass_user_data = True), RegexHandler('^\/[0-9A-Za-z]{10}$', changeLobby, pass_user_data = True)],
   states = {
-    SETNAME: [MessageHandler(Filters.text, playerName, pass_user_data = True)]
+    SETNAME: [MessageHandler(Filters.text&Filters.private, playerName, pass_user_data = True)]
   },
-  fallbacks = [CommandHandler('cancel', cancel)]
+  fallbacks = [CommandHandler('cancel', Filters.private, cancel)]
 )
 
 leaveGame = ConversationHandler(
-  entry_points = [CommandHandler('leave', leave, pass_user_data = True)],
+  entry_points = [CommandHandler('leave', leave, Filters.private, pass_user_data = True)],
   states = {
-    SETNAME: [MessageHandler(Filters.text, leaveLobby, pass_user_data = True)]
+    SETNAME: [MessageHandler(Filters.text&Filters.private, leaveLobby, pass_user_data = True)]
   },
-  fallbacks = [CommandHandler('cancel', cancel)]
+  fallbacks = [CommandHandler('cancel', Filters.private, cancel)]
 )
 
 dispatcher.add_handler(joinGame)
 dispatcher.add_handler(newGame)
 dispatcher.add_handler(leaveGame)
-dispatcher.add_handler(CommandHandler('my', my))
-dispatcher.add_handler(CommandHandler('help', help, pass_args = True))
-dispatcher.add_handler(CommandHandler('roll', roll, pass_args = True, pass_user_data = True))
-dispatcher.add_handler(CommandHandler('open', open, pass_user_data = True))
-dispatcher.add_handler(CommandHandler('close', close, pass_user_data = True))
+dispatcher.add_handler(CommandHandler('my', my, Filters.private))
+dispatcher.add_handler(CommandHandler('help', help, Filters.private, pass_args = True))
+dispatcher.add_handler(CommandHandler('roll', roll, Filters.private, pass_args = True, pass_user_data = True))
+dispatcher.add_handler(CommandHandler('open', open, Filters.private, pass_user_data = True))
+dispatcher.add_handler(CommandHandler('close', close, Filters.private, pass_user_data = True))
 dispatcher.add_handler(CallbackQueryHandler(editMessage, pass_user_data = True))
-dispatcher.add_handler(MessageHandler(Filters.text, handleText, pass_user_data = True))
+dispatcher.add_handler(MessageHandler(Filters.text&Filters.private, handleText, pass_user_data = True))
 dispatcher.add_error_handler(error_callback)
 updater.start_polling()
 
