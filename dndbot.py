@@ -179,6 +179,7 @@ def initMessage(bot, update, user_data):
   if oldMessage != None:
     bot.edit_message_text(chat_id = message.chat_id, message_id = oldMessage, text = "Deprecated")
   user_data['sendTo'] = []
+  dbFuncs.updateSendtoInCurrent(user_data['id'], user_data['sendTo'])
   keyboard = createKeyboard(message, user_data)
   title = dbFuncs.getLobbyTitle(user_data['lobby'])
   dmchat = dbFuncs.getDM(user_data['lobby'])
@@ -203,6 +204,7 @@ def editMessage(bot, update, user_data):
       user_data['sendTo'].remove(player)
     else:
       user_data['sendTo'].append(player)
+    dbFuncs.updateSendtoInCurrent(user_data['id'], user_data['sendTo'])
   keyboard = createKeyboard(query, user_data)
   try:
     bot.edit_message_reply_markup(chat_id = message.chat_id, message_id = message.message_id, reply_markup = InlineKeyboardMarkup(keyboard))
@@ -230,12 +232,13 @@ def checkUserData(id, user_data):
   user_data['lobby'] = dbFuncs.getCurrentLobby(id)
   user_data['character'] = dbFuncs.getOwnCharacter(id, user_data['lobby'])
   if 'sendTo' not in user_data:
-    user_data['sendTo'] = []
+    user_data['sendTo'] = dbFuncs.getCurrentSendto(id)
   else:
     test = dbFuncs.getPlayers(user_data['lobby'])
     for i in user_data['sendTo']:
       if i not in test:
         user_data['sendTo'].remove(i)
+    dbFuncs.updateSendtoInCurrent(id, user_data['sendTo'])
 
 def handleText(bot, update, user_data):
   checkUserData(update.message.from_user['id'], user_data)

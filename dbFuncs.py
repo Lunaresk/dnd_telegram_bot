@@ -11,7 +11,7 @@ def initDB():
   cur = conn.cursor()
   conn.rollback()
   cur.execute("CREATE TABLE IF NOT EXISTS Games(Code TEXT PRIMARY KEY NOT NULL, Title TEXT NOT NULL, DM BIGINT NOT NULL, Open BOOLEAN NOT NULL DEFAULT TRUE);")
-  cur.execute("CREATE TABLE IF NOT EXISTS Current(Player BIGINT PRIMARY KEY NOT NULL, Game TEXT REFERENCES Games, Message BIGINT);")
+  cur.execute("CREATE TABLE IF NOT EXISTS Current(Player BIGINT PRIMARY KEY NOT NULL, Game TEXT REFERENCES Games, Message BIGINT, SendTo Text);")
   cur.execute("CREATE TABLE IF NOT EXISTS Players(Player BIGINT NOT NULL REFERENCES Current, Character TEXT NOT NULL, Code TEXT REFERENCES Games);")
   conn.commit()
 
@@ -41,6 +41,13 @@ def updateGameInCurrent(player, code):
   cur.execute("UPDATE Current SET Game = %s WHERE Player = %s;", (code, player))
   conn.commit()
 
+def updateSendtoInCurrent(player, sendto):
+  dbEntry = []
+  for i in sendto:
+    dbEntry.append(str(i))
+  cur.execute("UPDATE Current SET SendTo = %s WHERE Player = %s;", (','.join(dbEntry), player))
+  conn.commit()
+
 def getCurrentMessage(player):
   cur.execute("SELECT Message FROM Current WHERE Player = %s;", (player,))
   return evaluateOne(cur.fetchone())
@@ -48,6 +55,20 @@ def getCurrentMessage(player):
 def getCurrentLobby(player):
   cur.execute("SELECT Game FROM Current WHERE Player = %s;", (player,))
   return evaluateOne(cur.fetchone())
+
+def getCurrentSendto(player):
+  cur.execute("SELECT SendTo FROM Current WHERE Player = %s;", (player,))
+  theList = evaluateOne(cur.fetchone())
+  if theList == None:
+    return []
+  theList = theList.split(',')
+  for i in range(len(theList)):
+    theList[i] = int(theList[i])
+  return theList
+
+def getAllUsers():
+  cur.execute("SELECT Player FROM Current;")
+  return evaluateList(cur.fetchall())
 
 def insertGame(code, title, dm):
   cur.execute("INSERT INTO Games(Code, Title, DM) VALUES(%s, %s, %s);", (code, title, dm))
