@@ -1,19 +1,15 @@
 from telegram import (InlineKeyboardButton, InlineKeyboardMarkup)
 from telegram.ext import (CommandHandler, MessageHandler, RegexHandler, ConversationHandler, CallbackQueryHandler, Filters)
-from telegram.error import (TelegramError, Unauthorized, BadRequest, TimedOut, ChatMigrated, NetworkError)
-import helpFuncs
-import dbFuncs
-from bottoken import getToken
+from ..errorCallback import error_callback
+from . import helpFuncs
+from . import dbFuncs
 import logging
 
-updater = getToken()
-dispatcher = updater.dispatcher
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 # SETNAME used for the conversationhandlers
 SETNAME = range(1)
 
-dbFuncs.initDB()
 
 # args should be the code of a lobby
 def start(bot, update, args, user_data):
@@ -53,16 +49,18 @@ def new(bot, update, args, user_data):
     title = helpFuncs.correctArgs(args)
     code = ""
     dm = update.message.from_user['id']
-    dmchat = update.message.chat_id
     for i in range(10):
       code = helpFuncs.id_generator()
       if dbFuncs.isAvailable(code):
         break
+    if not dbFuncs.isAvailable(code):
+      bot.send_message(chat_id = dm, text = "I wasn't able to create a lobby. I'm sorry, please try again.")
+      return ConversationHandler.END
     user_data['lobby'] = code
     user_data['character'] = ""
     dbFuncs.insertGame(code, title, dm)
-    bot.send_message(chat_id = dmchat, text = "Gratulation! Game created. Use this code to invite your group to your game:")
-    bot.send_message(chat_id = dmchat, text = u"[Join {0}](https://telegram.me/DnDPPbot?start={1}".format(title, code), parse_mode = 'Markdown')
+    bot.send_message(chat_id = dm, text = "Gratulation! Game created. Use this code to invite your group to your game:")
+    bot.send_message(chat_id = dm, text = u"[Join {0}](https://telegram.me/DnDPPbot?start={1}".format(title, code), parse_mode = 'Markdown')
     return initMessage(bot, update, user_data)
   else:
     bot.send_message(chat_id = update.message.chat_id, text = "Great! Please enter a Title for your round.")
@@ -209,7 +207,7 @@ def editMessage(bot, update, user_data):
   try:
     bot.edit_message_reply_markup(chat_id = message.chat_id, message_id = message.message_id, reply_markup = InlineKeyboardMarkup(keyboard))
     bot.answer_callback_query(callback_query_id = query.id)
-  except BadRequest:
+  except:
     bot.answer_callback_query(callback_query_id = query.id, text = "Nobody else joined")
 
 def createKeyboard(message, user_data):
@@ -307,65 +305,55 @@ def help(bot, update, args):
   else:
     help(bot, update, [])
 
-def error_callback(bot, update, error):
-  try:
-    raise error
-  except Unauthorized:
-    print ('UnauthorizedError >> ' + str(error))
-    # remove update.message.chat_id from conversation list
-  except BadRequest:
-    print ('BadRequestError >> ' + str(error))
-    # handle malformed requests - read more below!
-  except TimedOut:
-    print ('TimedOutError >> ' + str(error))
-    # handle slow connection problems
-  except NetworkError:
-    print ('NetworkError >> ' + str(error))
-    # handle other connection problems
-  except ChatMigrated as e:
-    print ('ChatMigratedError >> ' + str(error))
-    # the chat_id of a group has changed, use e.new_chat_id instead
-  except TelegramError:
-    print ('AnotherError >> ' + str(error))
-    # handle all other telegram related errors
+def main(updater):
+  dispatcher = updater.dispatcher
 
-newGame = ConversationHandler(
-  entry_points = [CommandHandler('new', new, Filters.private, pass_args = True, pass_user_data = True)],
-  states = {
-    SETNAME: [MessageHandler(Filters.text&Filters.private, gameName, pass_user_data = True)]
-  },
-  fallbacks = [CommandHandler('cancel', Filters.private, cancel)]
-)
+  dbFuncs.initDB()
 
-joinGame = ConversationHandler(
-  entry_points = [CommandHandler('start', start, Filters.private, pass_args = True, pass_user_data = True), RegexHandler('^\/[0-9A-Za-z]{10}$', changeLobby, pass_user_data = True)],
-  states = {
-    SETNAME: [MessageHandler(Filters.text&Filters.private, playerName, pass_user_data = True)]
-  },
-  fallbacks = [CommandHandler('cancel', Filters.private, cancel)]
-)
+  newGame = ConversationHandler(
+    entry_points = [CommandHandler('new', new, Filters.private, pass_args = True, pass_user_data = True)],
+    states = {
+      SETNAME: [MessageHandler(Filters.text&Filters.private, gameName, pass_user_data = True)]
+    },
+    fallbacks = [CommandHandler('cancel', Filters.private, cancel)]
+  )
 
-leaveGame = ConversationHandler(
-  entry_points = [CommandHandler('leave', leave, Filters.private, pass_user_data = True)],
-  states = {
-    SETNAME: [MessageHandler(Filters.text&Filters.private, leaveLobby, pass_user_data = True)]
-  },
-  fallbacks = [CommandHandler('cancel', Filters.private, cancel)]
-)
+  joinGame = ConversationHandler(
+    entry_points = [CommandHandler('start', start, Filters.private, pass_args = True, pass_user_data = True), RegexHandler('^\/[0-9A-Za-z]{10}$', changeLobby, pass_user_data = True)],
+    states = {
+      SETNAME: [MessageHandler(Filters.text&Filters.private, playerName, pass_user_data = True)]
+    },
+    fallbacks = [CommandHandler('cancel', Filters.private, cancel)]
+  )
 
-dispatcher.add_handler(joinGame)
-dispatcher.add_handler(newGame)
-dispatcher.add_handler(leaveGame)
-dispatcher.add_handler(CommandHandler('my', my, Filters.private))
-dispatcher.add_handler(CommandHandler('help', help, Filters.private, pass_args = True))
-dispatcher.add_handler(CommandHandler('roll', roll, Filters.private, pass_args = True, pass_user_data = True))
-dispatcher.add_handler(CommandHandler('open', open, Filters.private, pass_user_data = True))
-dispatcher.add_handler(CommandHandler('close', close, Filters.private, pass_user_data = True))
-dispatcher.add_handler(CallbackQueryHandler(editMessage, pass_user_data = True))
-dispatcher.add_handler(MessageHandler(Filters.text&Filters.private, handleText, pass_user_data = True))
-dispatcher.add_error_handler(error_callback)
-updater.start_polling()
+  leaveGame = ConversationHandler(
+    entry_points = [CommandHandler('leave', leave, Filters.private, pass_user_data = True)],
+    states = {
+      SETNAME: [MessageHandler(Filters.text&Filters.private, leaveLobby, pass_user_data = True)]
+    },
+    fallbacks = [CommandHandler('cancel', Filters.private, cancel)]
+  )
 
-updater.idle()
+  dispatcher.add_handler(joinGame)
+  dispatcher.add_handler(newGame)
+  dispatcher.add_handler(leaveGame)
+  dispatcher.add_handler(CommandHandler('my', my, Filters.private))
+  dispatcher.add_handler(CommandHandler('help', help, Filters.private, pass_args = True))
+  dispatcher.add_handler(CommandHandler('roll', roll, Filters.private, pass_args = True, pass_user_data = True))
+  dispatcher.add_handler(CommandHandler('open', open, Filters.private, pass_user_data = True))
+  dispatcher.add_handler(CommandHandler('close', close, Filters.private, pass_user_data = True))
+  dispatcher.add_handler(CallbackQueryHandler(editMessage, pass_user_data = True))
+  dispatcher.add_handler(MessageHandler(Filters.text&Filters.private, handleText, pass_user_data = True))
+  dispatcher.add_error_handler(error_callback)
+  updater.start_polling()
 
-dbFuncs.close()
+  updater.idle()
+
+  updater.stop()
+
+  dbFuncs.close()
+
+
+if __name__ == '__main__':
+  from ..bottoken import getToken
+  main(getToken())

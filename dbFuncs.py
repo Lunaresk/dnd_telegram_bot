@@ -1,4 +1,4 @@
-from bottoken import getConn
+from ..bottoken import getConn
 import psycopg2
 
 conn = None
@@ -7,7 +7,7 @@ cur = None
 def initDB():
   global conn
   global cur
-  conn = getConn()
+  conn = getConn('dndppbot')
   cur = conn.cursor()
   conn.rollback()
   cur.execute("CREATE TABLE IF NOT EXISTS Games(Code TEXT PRIMARY KEY NOT NULL, Title TEXT NOT NULL, DM BIGINT NOT NULL, Open BOOLEAN NOT NULL DEFAULT TRUE);")
@@ -59,7 +59,7 @@ def getCurrentLobby(player):
 def getCurrentSendto(player):
   cur.execute("SELECT SendTo FROM Current WHERE Player = %s;", (player,))
   theList = evaluateOne(cur.fetchone())
-  if theList == None:
+  if theList == None or len(theList) == 0:
     return []
   theList = theList.split(',')
   for i in range(len(theList)):
