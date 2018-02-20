@@ -1,5 +1,4 @@
 from ..bottoken import getConn
-import psycopg2
 
 conn = None
 cur = None
@@ -7,7 +6,7 @@ cur = None
 def initDB():
   global conn
   global cur
-  conn = getConn('dndppbot')
+  conn = getConn('dndppbot') #connect with psycopg2
   cur = conn.cursor()
   conn.rollback()
   cur.execute("CREATE TABLE IF NOT EXISTS Games(Code TEXT PRIMARY KEY NOT NULL, Title TEXT NOT NULL, DM BIGINT NOT NULL, Open BOOLEAN NOT NULL DEFAULT TRUE);")
@@ -119,12 +118,6 @@ def getGames(player):
   temp1 = evaluateList(cur.fetchall())
   cur.execute("SELECT Code FROM Players WHERE Player = %s;", (player,))
   temp2 = evaluateList(cur.fetchall())
-  if temp1 == None:
-    if temp2 == None:
-      return None
-    return temp2
-  if temp2 == None:
-    return temp1
   return temp1 + temp2
 
 def removePlayerFromGame(player, game):
@@ -138,8 +131,6 @@ def evaluateList(datas):
   list = []
   for i in datas:
     list.append(i[0])
-  if len(list) == 0:
-    return None
   return list
 
 def evaluateOne(data):

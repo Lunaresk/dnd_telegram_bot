@@ -18,30 +18,24 @@ def start(bot, update, args, user_data):
   if len(args) == 0:
     bot.send_message(chat_id=update.message.chat_id, text="Hey buddy! Welcome to the DnD Messenger bot. It allows your character to talk/whisper to other characters without anyone else except the Dungeon Master reading it.\nIf you are a DM, please type /new\nOtherwise, ask your DM for the correct code\link to join a group.")
     return ConversationHandler.END
-  args = ''.join(args)[0:11]
-  if len(args) != 10:
-    bot.send_message(chat_id = update.message.chat_id, text = "The length of the code is strange. It should be 10 characters long. Please try again.")
+  args = ''.join(args)
+  if checkCode(args, update.message.from_user['id']):
+    bot.send_message(chat_id = update.message.chat_id, text = checkCode(args)+" Please ask your DM for help.")
     return ConversationHandler.END
-  if dbFuncs.isAvailable(args):
-    user_data['lobby'] = args
-    if update.message.from_user['id'] == dbFuncs.getDM(user_data['lobby']):
-      user_data['character'] = "DM"
-    else:
-      user_data['character'] = dbFuncs.getOwnCharacter(update.message.from_user['id'], user_data['lobby'])
-    if user_data['character'] != None:
-      bot.send_message(chat_id = update.message.chat_id, text = "Changed the Dungeon. You are now playing as {0}".format(user_data['character']))
-      initMessage(bot, update, user_data)
-      return ConversationHandler.END
-    if not dbFuncs.isOpen(user_data['lobby']):
-      bot.send_message(chat_id = update.message.chat_id, text = "This lobby seems to be closed by the DM. You should PM him if you want to join.")
-      return ConversationHandler.END
-    dmchat = dbFuncs.getDM(user_data['lobby'])
-    dmname = bot.getChat(chat_id = dmchat).first_name
-    title = dbFuncs.getLobbyTitle(user_data['lobby'])
-    bot.send_message(chat_id = update.message.chat_id, text = u"Cool! You're joining {0} from {1}. Send now the name of your Character, so that the others can identify you.".format(title, dmname))
-    return SETNAME
-  bot.send_message(chat_id = update.message.chat_id, text = "I wasn't able to find the lobby. Please ask your DM for the code again.")
-  return ConversationHandler.END
+  user_data['lobby'] = args
+  if update.message.from_user['id'] == dbFuncs.getDM(args):
+    user_data['character'] = "DM"
+  else:
+    user_data['character'] = dbFuncs.getOwnCharacter(update.message.from_user['id'], user_data['lobby'])
+  if user_data['character'] != None:
+    bot.send_message(chat_id = update.message.chat_id, text = "Changed the Dungeon. You are now playing as {0}".format(user_data['character']))
+    initMessage(bot, update, user_data)
+    return ConversationHandler.END
+  dmchat = dbFuncs.getDM(user_data['lobby'])
+  dmname = bot.getChat(chat_id = dmchat).first_name
+  title = dbFuncs.getLobbyTitle(user_data['lobby'])
+  bot.send_message(chat_id = update.message.chat_id, text = u"Cool! You're joining {0} from {1}. Send now the name of your Character, so that the others can identify you.".format(title, dmname))
+  return SETNAME
 
 def new(bot, update, args, user_data):
   checkUserData(update.message.from_user['id'], user_data)
@@ -51,9 +45,9 @@ def new(bot, update, args, user_data):
     dm = update.message.from_user['id']
     for i in range(10):
       code = helpFuncs.id_generator()
-      if dbFuncs.isAvailable(code):
+      if not dbFuncs.isAvailable(code):
         break
-    if not dbFuncs.isAvailable(code):
+    if dbFuncs.isAvailable(code):
       bot.send_message(chat_id = dm, text = "I wasn't able to create a lobby. I'm sorry, please try again.")
       return ConversationHandler.END
     user_data['lobby'] = code
@@ -68,7 +62,7 @@ def new(bot, update, args, user_data):
 
 def my(bot, update):
   games = dbFuncs.getGames(update.message.from_user['id'])
-  if games == None:
+  if len(games) == 0:
     bot.send_message(chat_id = update.message.chat_id, text = "There is currently no lobby you're in. Get a group together and change this.")
     return
   theText = "Here's a list of games you're currently in (I recommend not to join more than two games):\n"
@@ -105,23 +99,21 @@ def playerName(bot, update, user_data):
   return initMessage(bot, update, user_data)
 
 def changeLobby(bot, update, user_data):
-  if len(update.message.text) >= 11:
-    code = update.message.text[1:12]
-  checkUserData(update.message.from_user['id'], user_data)
-  if not dbFuncs.isAvailable(code):
-    bot.send_message(chat_id = update.message.chat_id, text = "I wasn't able to find the lobby. Please check your code for typos and check for case sensitive.")
-    return ConversationHandler.END
-  test = dbFuncs.getDM(code)
-  if test == update.message.from_user['id']:
-    user_data['character'] = ""
-    user_data['lobby'] = code
-    return initMessage(bot, update, user_data)
-  temp = dbFuncs.getOwnCharacter(update.message.from_user['id'], code)
-  if temp != None:
-    user_data['character'] = temp
-    user_data['lobby'] = code
-    return initMessage(bot, update, user_data)
-  return start(bot, update, code, user_data)
+  return start(bot, update, update.message.text[1:], user_data)
+
+def regexSlash(bot, update):
+  bot.send_message(chat_id = update.message.chat_id, text = checkCode(update.message.text[1:]))
+
+def checkCode(code, id = -1):
+  if len(code) != 10:
+    return "Your code hasn't got the right length. It should be 10 characters long."
+  elif not dbFuncs.isAvailable(code):
+    return "The code you sent me doesn't belong to any lobby."
+  elif not dbFuncs.isOpen(code):
+    if id in dbFuncs.getPlayers(code) or id == dbFuncs.getDM(code):
+      return False
+    return "The lobby you're trying to join is currently closed."
+  return False
 
 def leave(bot, update, user_data):
   checkUserData(update.message.from_user['id'], user_data)
@@ -142,9 +134,8 @@ def leaveLobby(bot, update, user_data):
   title = dbFuncs.getLobbyTitle(user_data['lobby'])
   if dbFuncs.getDM(user_data['lobby']) == user_data['id']:
     dbFuncs.removeGame(user_data['lobby'])
-    if players != None:
-      for i in players:
-        bot.send_message(chat_id = i, text = u"Your DM removed the game {0}. You're on your own now.".format(title))
+    for i in players:
+      bot.send_message(chat_id = i, text = u"Your DM removed the game {0}. You're on your own now.".format(title))
   else:
     players.append(dbFuncs.getDM(user_data['lobby']))
     players.remove(user_data['id'])
@@ -214,15 +205,14 @@ def createKeyboard(message, user_data):
   keyboard = [[InlineKeyboardButton("🔄 Refresh 🔄", callback_data = "refresh")]]
   pcharas = dbFuncs.getPlayerCharas(user_data['lobby'])
   pchats = dbFuncs.getPlayers(user_data['lobby'])
-  if pchats != None and pcharas != None:
-    if message.from_user['id'] in pchats and user_data['character'] in pcharas:
-      pchats.remove(message.from_user['id'])
-      pcharas.remove(user_data['character'])
-    for i in range(len(pchats)):
-      if pchats[i] in user_data['sendTo']:
-        keyboard.append([InlineKeyboardButton("✔ " + pcharas[i], callback_data = pchats[i])])
-      else:
-        keyboard.append([InlineKeyboardButton("❌ " + pcharas[i], callback_data = pchats[i])])
+  if message.from_user['id'] in pchats and user_data['character'] in pcharas:
+    pchats.remove(message.from_user['id'])
+    pcharas.remove(user_data['character'])
+  for i in range(len(pchats)):
+    if pchats[i] in user_data['sendTo']:
+      keyboard.append([InlineKeyboardButton("✔ " + pcharas[i], callback_data = pchats[i])])
+    else:
+      keyboard.append([InlineKeyboardButton("❌ " + pcharas[i], callback_data = pchats[i])])
   return keyboard
 
 def checkUserData(id, user_data):
@@ -249,7 +239,7 @@ def sendText(bot, theText, user_data, action):
     return
   dmchat = dbFuncs.getDM(code)
   pchats = dbFuncs.getPlayers(code)
-  if pchats == None:
+  if len(pchats) == 0:
     bot.send_message(chat_id = user_data['id'], text = "Nobody is in here. Invite some people.")
   pcharas = dbFuncs.getPlayerCharas(code)
   own = user_data['character']
@@ -343,6 +333,7 @@ def main(updater):
   dispatcher.add_handler(CommandHandler('open', open, Filters.private, pass_user_data = True))
   dispatcher.add_handler(CommandHandler('close', close, Filters.private, pass_user_data = True))
   dispatcher.add_handler(CallbackQueryHandler(editMessage, pass_user_data = True))
+  dispatcher.add_handler(RegexHandler('^\/.*', regexSlash))
   dispatcher.add_handler(MessageHandler(Filters.text&Filters.private, handleText, pass_user_data = True))
   dispatcher.add_error_handler(error_callback)
   updater.start_polling()
