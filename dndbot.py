@@ -305,7 +305,7 @@ def main(updater):
     states = {
       SETNAME: [MessageHandler(Filters.text&Filters.private, gameName, pass_user_data = True)]
     },
-    fallbacks = [CommandHandler('cancel', Filters.private, cancel)]
+    fallbacks = [CommandHandler('cancel', cancel, Filters.private)]
   )
 
   joinGame = ConversationHandler(
@@ -313,7 +313,7 @@ def main(updater):
     states = {
       SETNAME: [MessageHandler(Filters.text&Filters.private, playerName, pass_user_data = True)]
     },
-    fallbacks = [CommandHandler('cancel', Filters.private, cancel)]
+    fallbacks = [CommandHandler('cancel', cancel, Filters.private)]
   )
 
   leaveGame = ConversationHandler(
@@ -321,7 +321,7 @@ def main(updater):
     states = {
       SETNAME: [MessageHandler(Filters.text&Filters.private, leaveLobby, pass_user_data = True)]
     },
-    fallbacks = [CommandHandler('cancel', Filters.private, cancel)]
+    fallbacks = [CommandHandler('cancel', cancel, Filters.private)]
   )
 
   dispatcher.add_handler(joinGame)
