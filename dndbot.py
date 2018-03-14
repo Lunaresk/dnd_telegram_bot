@@ -298,8 +298,6 @@ def help(bot, update, args):
 def main(updater):
   dispatcher = updater.dispatcher
 
-  dbFuncs.initDB()
-
   newGame = ConversationHandler(
     entry_points = [CommandHandler('new', new, Filters.private, pass_args = True, pass_user_data = True)],
     states = {
@@ -341,8 +339,6 @@ def main(updater):
   updater.idle()
 
   updater.stop()
-
-  dbFuncs.close()
 
 
 if __name__ == '__main__':
